@@ -5,10 +5,11 @@ import os
 import requests
 import torch
 import joblib
+import uvicorn
 
 app = FastAPI()
 
-# Hugging Face model URL
+# Hugging Face model URL (your username is ap6617)
 model_url = "https://huggingface.co/ap6617/bert-financial-tagger/resolve/main/bert_model.tar.gz"
 model_dir = "bert_model"
 tar_path = "bert_model.tar.gz"
@@ -30,15 +31,17 @@ if not os.path.exists(model_dir):
 model = BertForSequenceClassification.from_pretrained(model_dir)
 tokenizer = BertTokenizer.from_pretrained(model_dir)
 
-# Optional: Load label binarizer
+# Step 3: Load label binarizer
 binarizer_url = "https://huggingface.co/ap6617/bert-financial-tagger/resolve/main/bert_label_binarizer.pkl"
 binarizer_file = "bert_label_binarizer.pkl"
 if not os.path.exists(binarizer_file):
+    print("Downloading label binarizer...")
     r = requests.get(binarizer_url)
     with open(binarizer_file, "wb") as f:
         f.write(r.content)
 mlb = joblib.load(binarizer_file)
 
+# API route
 @app.post("/predict")
 async def predict(request: Request):
     data = await request.json()
@@ -51,3 +54,8 @@ async def predict(request: Request):
         probs = torch.sigmoid(outputs.logits).cpu().numpy()
         tags = mlb.inverse_transform(probs > 0.5)
     return {"tags": tags[0] if tags else []}
+
+# For Render's port
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
